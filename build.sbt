@@ -1,4 +1,4 @@
-enablePlugins(JavaAppPackaging)
+enablePlugins(JavaAppPackaging, SbtOsgi)
 
 organization := "sekvensa"
 
@@ -30,6 +30,9 @@ libraryDependencies ++= {
     "org.scalatest"     %% "scalatest"                            % scalaTestV % "test"
   )
 }
+
+
+osgiSettings
 
 publishMavenStyle := true
 
