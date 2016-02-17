@@ -22,7 +22,7 @@ libraryDependencies ++= {
     "com.typesafe.akka" %% "akka-http-experimental"               % akkaStreamV,
     "com.typesafe.akka" %% "akka-http-spray-json-experimental"    % akkaStreamV,
     "com.typesafe.akka" %% "akka-http-testkit-experimental"       % akkaStreamV,
-    "com.codemettle.reactivemq" %% "reactivemq"                   % "0.5.0",
+    "com.codemettle.reactivemq" %% "reactivemq"                   % "0.5.4",
     "org.apache.activemq" % "activemq-client"                     % "5.13.1",
     "org.json4s" %% "json4s-native"                               % "3.3.0",
     "org.json4s" %% "json4s-ext"                                  % "3.3.0",

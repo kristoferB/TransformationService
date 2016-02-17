@@ -17,6 +17,11 @@ object Main extends App with HealthCheckService {
   val transformActor = system.actorOf(sekvensa.service.Transformer.props)
   transformActor ! "connect"
 
+  scala.io.StdIn.readLine("Press ENTER to exit application.\n") match {
+    case x => system.terminate()
+  }
+
+
   // Start a rest API - example
   //val (interface, port) = (config.getString("http.interface"), config.getInt("http.port"))
   //logger.info(s"Starting service on port $port")

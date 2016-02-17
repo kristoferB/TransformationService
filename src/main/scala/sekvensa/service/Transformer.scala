@@ -51,6 +51,10 @@ class Transformer extends Actor {
     }
   }
 
+  override def postStop() = {
+    theBus.map(_ ! CloseConnection)
+  }
+
 
   def checkTheDiff(ps: List[ElvisPatient]) = {
     if (currentState.isEmpty) {
