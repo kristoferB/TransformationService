@@ -2,20 +2,18 @@ package sekvensa
 
 import akka.actor.ActorSystem
 import akka.event.Logging
-import akka.http.scaladsl.Http
-import akka.stream.ActorMaterializer
-import com.typesafe.config.ConfigFactory
-import sekvensa.service.healthcheck.HealthCheckService
 
-object Main extends App with HealthCheckService {
+object Main extends App {
 
   implicit val system = ActorSystem()
   implicit val executor = system.dispatcher
-  implicit val materializer = ActorMaterializer()
   val logger = Logging(system, "SimpleService")
 
   val transformActor = system.actorOf(sekvensa.service.Transformer.props)
   transformActor ! "connect"
+
+  val transformListener = system.actorOf(sekvensa.service.TransformerListener.props)
+  transformListener ! "connect"
 
   scala.io.StdIn.readLine("Press ENTER to exit application.\n") match {
     case x => system.terminate()
@@ -24,6 +22,6 @@ object Main extends App with HealthCheckService {
 
   // Start a rest API - example
   //val (interface, port) = (config.getString("http.interface"), config.getInt("http.port"))
-  //logger.info(s"Starting service on port $port")
+  //logger.info(s"Starting sekvensa.service on port $port")
   //Http().bindAndHandle(routes, interface, port)
 }

@@ -1,6 +1,6 @@
 # Patient Diff Service
 
-This project gives you a base template for creating transformation services. In this case it is a service that
+This project gives you a base template for creating transformation services. In this case it is a sekvensa.service that
 listens to Elvis patient snapshots
 
 ## Quickstart
@@ -14,13 +14,13 @@ sbt
 To enter sbt
 
 
-## Starting the service
+## Starting the sekvensa.service
 
 ```
 sbt run
 ```
 
-## Packaging the service
+## Packaging the sekvensa.service
 
 See the SBT assembly plugin for more info. To package as zip file run
 

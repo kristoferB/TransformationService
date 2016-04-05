@@ -2,7 +2,7 @@ enablePlugins(JavaAppPackaging, SbtOsgi)
 
 organization := "sekvensa"
 
-name := "PatientDiff"
+name := "AreusSunrise"
 
 version := "0.1"
 
@@ -17,11 +17,11 @@ libraryDependencies ++= {
   Seq(
     "com.typesafe"       % "config"                               % "1.3.0",
     "com.typesafe.akka" %% "akka-actor"                           % akkaV,
-    "com.typesafe.akka" %% "akka-stream-experimental"             % akkaStreamV,
-    "com.typesafe.akka" %% "akka-http-core-experimental"          % akkaStreamV,
-    "com.typesafe.akka" %% "akka-http-experimental"               % akkaStreamV,
-    "com.typesafe.akka" %% "akka-http-spray-json-experimental"    % akkaStreamV,
-    "com.typesafe.akka" %% "akka-http-testkit-experimental"       % akkaStreamV,
+//    "com.typesafe.akka" %% "akka-stream-experimental"             % akkaStreamV,
+//    "com.typesafe.akka" %% "akka-http-core-experimental"          % akkaStreamV,
+//    "com.typesafe.akka" %% "akka-http-experimental"               % akkaStreamV,
+//    "com.typesafe.akka" %% "akka-http-spray-json-experimental"    % akkaStreamV,
+//    "com.typesafe.akka" %% "akka-http-testkit-experimental"       % akkaStreamV,
     "com.codemettle.reactivemq" %% "reactivemq"                   % "0.5.4",
     "org.apache.activemq" % "activemq-client"                     % "5.13.1",
     "org.json4s" %% "json4s-native"                               % "3.3.0",
