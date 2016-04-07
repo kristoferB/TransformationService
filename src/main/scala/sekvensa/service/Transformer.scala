@@ -54,9 +54,8 @@ class Transformer extends Actor with DummyOptimizer {
 
 
       val optTrajName = traj.map(_.info.name).getOrElse("noName") +"_opt"
-      val optTrajFreq = traj.map(_.info.freq).getOrElse(1)
       val optPara = traj.map(_.optimization).getOrElse(OptimizationParameters("Can not convert"))
-      val resTray = Trajectory(Info(optTrajName, DateTime.now, optTrajFreq), optPara, res)
+      val resTray = Trajectory(Info(optTrajName, DateTime.now), optPara, res)
       sendToLisa(write(resTray))
     }
   }
@@ -83,21 +82,24 @@ object Transformer {
 trait DummyOptimizer {
   def createNewTraj(t: Trajectory) = {
     implicit val formats = org.json4s.DefaultFormats ++ org.json4s.ext.JodaTimeSerializers.all
-    println("The optimizer go: "+write(t))
+    println("The optimizer got: "+write(t))
     t.optimization.optType match {
       case "slowDown" =>
-        t.trajectory.foldLeft(List(List[Double]()))((a, b) => {
-          val middle = if (a.isEmpty) List() else {
-            val zip = a.head zip b
-            zip.map(kv => (kv._1+kv._2)/2)
+        t.trajectory.foldLeft(List[Pose]())((a, b) => {
+          a.headOption match {
+            case None => List(b)
+            case Some(p) =>
+              val zip = p.joints zip b.joints
+              val newT = (p.time + b.time*2) / 2
+              val newB = b.copy(time = b.time*2)
+              newB :: Pose(newT, zip.map(kv => (kv._1+kv._2)/2)) :: a
           }
-          b :: middle :: a
-        }).reverse.filter(_.nonEmpty)
+        }).reverse
       case "jointer" if t.trajectory.nonEmpty =>
-        val j1 = Try{t.trajectory.head(0)}.getOrElse(0.0)
-        val j2 = Try{t.trajectory.head(1)}.getOrElse(0.0)
-        t.trajectory.map{xs => List(j1, j2) ++ xs.drop(2)}
-      case _ => List(List[Double]())
+        val j1 = Try{t.trajectory.head.joints(0)}.getOrElse(0.0)
+        val j2 = Try{t.trajectory.head.joints(1)}.getOrElse(0.0)
+        t.trajectory.map{p => p.copy(joints = List(j1, j2) ++ p.joints.drop(2))}
+      case _ => List()
     }
   }
 }

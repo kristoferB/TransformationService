@@ -7,6 +7,7 @@ import org.joda.time.DateTime
   */
 
 
-case class Info(name: String, time: DateTime, freq:Int)
+case class Info(name: String, time: DateTime)
 case class OptimizationParameters(optType: String)
-case class Trajectory(info: Info, optimization: OptimizationParameters, trajectory: List[List[Double]])
+case class Pose(time: Double, joints: List[Double])
+case class Trajectory(info: Info, optimization: OptimizationParameters, trajectory: List[Pose])
