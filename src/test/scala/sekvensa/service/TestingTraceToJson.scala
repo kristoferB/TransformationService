@@ -3,15 +3,19 @@ package sekvensa.service
 import org.scalatest.{FreeSpec, Matchers}
 import org.json4s.native.Serialization._
 
+import scala.annotation.tailrec
 import scala.util.Try
 
 trait FilesNStuff {
 
   // Script settings
-  val folder = "/Users/kristofer/Dropbox/Sarmad - Kristofer/KB-TRACE/"
+  val folder = "C:/Users/krist/Dropbox/Sarmad - Kristofer/Experiments KUKA Nordic/traces and emi/160421/multiplePaus/"
   val logFile = "TraceORIG_KRCIpo.asc"
   val progFile = "TraceORIG_PROG.TXT"
   val jsonFile = "TraceORIG.json"
+  val start = 5.328
+  val end = 6.924
+  val emiFile = "emiMiddle.txt"
   val pretty = true
 
   val fileLines = readFromFile(folder + logFile)
@@ -29,6 +33,25 @@ trait FilesNStuff {
     scala.io.Source.fromFile(path, "UTF-8").getLines.toList
 }
 
+case class JointValues(t: Double, j1: Double, j2: Double, j3: Double, j4: Double, j5: Double, j6: Double) {
+  def -(jv: JointValues) = {
+    val dt = t - jv.t
+    JointValues(t, (j1-jv.j1)/(dt), (j2-jv.j2)/(dt), (j3-jv.j3)/(dt), (j4-jv.j4)/(dt), (j5-jv.j5)/(dt), (j6-jv.j6)/(dt))
+  }
+  override def toString = {
+    round(t,3).toString + "  " +
+    j1.toString  + "  " +
+    j2.toString  + "  " +
+    j3.toString  + "  " +
+    j4.toString  + "  " +
+    j5.toString  + "  " +
+    j6.toString
+  }
+  def round(n: Double, p: Int): Double = {
+    BigDecimal(n).setScale(p, BigDecimal.RoundingMode.HALF_UP).toDouble
+  }
+}
+
 trait TraceNProgEater {
   def zipTheLog(lines: List[String]) = {
     println(s"no of lines" + lines.size)
@@ -36,6 +59,40 @@ trait TraceNProgEater {
     val logLines = lines.tail.map(_.split("\t"))
     logLines.map(x => (head zip x).toMap)
   }
+
+  def extractJVs(map: Map[String, String]) = {
+    for {
+      ts <- map.get("Zeit [s]")
+      t <- Try(ts.toDouble).toOption
+      j1s <- map.get("AxisPos_CmdIpo1 [°]")
+      j1 <- Try(j1s.toDouble).toOption
+      j2s <- map.get("AxisPos_CmdIpo2 [°]")
+      j2 <- Try(j2s.toDouble).toOption
+      j3s <- map.get("AxisPos_CmdIpo3 [°]")
+      j3 <- Try(j3s.toDouble).toOption
+      j4s <- map.get("AxisPos_CmdIpo4 [°]")
+      j4 <- Try(j4s.toDouble).toOption
+      j5s <- map.get("AxisPos_CmdIpo5 [°]")
+      j5 <- Try(j5s.toDouble).toOption
+      j6s <- map.get("AxisPos_CmdIpo6 [°]")
+      j6 <- Try(j6s.toDouble).toOption
+    } yield {JointValues(t, j1, j2, j3, j4, j5, j6)}
+  }
+
+  @tailrec
+  final def derJVs(xs: List[JointValues], res: List[JointValues]): List[JointValues] = xs match {
+    case Nil => res.reverse
+    case x :: Nil => res.reverse
+    case x :: y :: xs =>
+      val dy = y - x
+      derJVs(xs, dy :: res)
+  }
+
+  def round(n: Double, p: Int): Double = {
+    val s = math pow(10,p)
+    (math floor n*s)/s
+  }
+
 
   //case class MotionInfo(time: Double, module: String, function: String, motionType: String, signal: String, line: Int, point: String, coord: String, blend: String, vel: String, acc: String, base: String, tool: String, ipo: String)
   def makeTheProgStruct(lines: List[String]) = {
@@ -94,7 +151,55 @@ class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with
     val marksWT = filter(makeTheProgStruct(markingLines))
     val sorted = (logWT ++ marksWT).sortWith(_._1 < _._1)
     val json = if (pretty) writePretty(sorted) else write(sorted)
-    writeToFile(folder, jsonFile, json)
+    //writeToFile(folder, jsonFile, json)
+  }
+
+  "find standstill" - {
+//    val logWT = zipTheLog(fileLines)
+//    val jVs = logWT.flatMap(extractJVs)
+//    val speed = derJVs(jVs, List())
+//    val acc = derJVs(speed, List())
+//    val jerk = derJVs(acc, List())
+//
+//    println(s"j: ${jVs.head}")
+//    println(s"s: ${speed.head}")
+//    println(s"a: ${acc.head}")
+//    println(s"y: ${jerk.head}")
+  }
+
+  "traceToEMI" - {
+    val completeLog = zipTheLog(fileLines)
+    val complLogWT = filter(completeLog)
+    val log = complLogWT.filter(x => x._1 >= start && (end < 0 || x._1 <= end)).map(_._2)
+
+    val jVs = log.flatMap(extractJVs)
+    val init = (-1.0, List[JointValues]())
+    val fixedTime = jVs.foldLeft(init)((a,b)=>
+      if (a._1 < 0){
+        val t = b.t
+        (t, List(b.copy(t = 0.0)))
+      } else {
+        val newV = b.t - a._1
+        (a._1, b.copy(t = b.t - a._1) :: a._2)
+      }
+    )._2.reverse
+
+    val header = List("[HEADER]", " GEAR_NOMINAL_VEL = 1.000000", "  CRC = 2339249579", "[RECORDS]")
+    val lastLine = "[END]"
+
+    val body = jVs.map(_.toString)
+    header.map(println)
+    body.map(println)
+    println(lastLine)
+
+    val body2 = fixedTime.map(_.toString)
+    header.map(println)
+    body2.map(println)
+    println(lastLine)
+
+    val res = (header ++ body2) :+ lastLine
+
+    writeLinesToFile(folder, emiFile, res)
   }
 
 }
