@@ -7,9 +7,8 @@ import scala.annotation.tailrec
 import scala.util.Try
 
 trait FilesNStuff {
-
   // Script settings
-  val folder = "C:/Users/krist/Dropbox/Sarmad - Kristofer/Experiments KUKA Nordic/traces and emi/160421/multiplePaus/"
+  val folder = "/Users/kristofer/Dropbox/Sarmad - Kristofer/Experiments KUKA Nordic/traces and emi/160421/multiplePaus/"
   val logFile = "TraceORIG_KRCIpo.asc"
   val progFile = "TraceORIG_PROG.TXT"
   val jsonFile = "TraceORIG.json"
@@ -85,7 +84,7 @@ trait TraceNProgEater {
     case x :: Nil => res.reverse
     case x :: y :: xs =>
       val dy = y - x
-      derJVs(xs, dy :: res)
+      derJVs(y :: xs, dy :: res)
   }
 
   def round(n: Double, p: Int): Double = {
@@ -118,6 +117,29 @@ trait TraceNProgEater {
   def getTheTime(m: Map[String, String]) = {
     val value = m.get("Zeit [s]").orElse(m.get("TIME"))
     value.flatMap(v => Try(v.toDouble).toOption)
+  }
+
+  def jointSpeedAccAndJerk(xs: List[JointValues]) = {
+    val start = JointValues(0,0,0,0,0,0,0)
+    val speed = derJVs(xs, List(start))
+    val acc = derJVs(speed, List(start))
+    val jerk = derJVs(acc, List(start))
+    (xs, speed, acc, jerk)
+  }
+
+  def mergeJoints(xs: List[JointValues]) = {
+    xs.map{x =>
+      val join = x.j1*x.j1 + x.j2*x.j2+ x.j3*x.j3+ x.j4*x.j4+ x.j5*x.j5+ x.j6*x.j6
+      (x.t, math sqrt(join / 6))
+    }
+  }
+
+  def allStandStills(xs: List[JointValues]) = {
+    val jsaj = jointSpeedAccAndJerk(xs)
+    val s = mergeJoints(jsaj._2).filter(_._2 <= 0.001).map(_._1)
+    val a = mergeJoints(jsaj._3).filter(_._2 <= 0.001).map(_._1)
+    val j = mergeJoints(jsaj._4).filter(_._2 <= 0.001).map(_._1)
+    s.filter(x => a.contains(x) && j.contains(x)).sortWith(_ < _)
   }
 }
 
@@ -155,51 +177,45 @@ class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with
   }
 
   "find standstill" - {
-//    val logWT = zipTheLog(fileLines)
-//    val jVs = logWT.flatMap(extractJVs)
-//    val speed = derJVs(jVs, List())
-//    val acc = derJVs(speed, List())
-//    val jerk = derJVs(acc, List())
-//
-//    println(s"j: ${jVs.head}")
-//    println(s"s: ${speed.head}")
-//    println(s"a: ${acc.head}")
-//    println(s"y: ${jerk.head}")
+    val logWT = zipTheLog(fileLines)
+    val jVs = logWT.flatMap(extractJVs)
+    val still = allStandStills(jVs)
+    println(s"All stills: $still")
   }
 
   "traceToEMI" - {
-    val completeLog = zipTheLog(fileLines)
-    val complLogWT = filter(completeLog)
-    val log = complLogWT.filter(x => x._1 >= start && (end < 0 || x._1 <= end)).map(_._2)
+//    val completeLog = zipTheLog(fileLines)
+//    val complLogWT = filter(completeLog)
+//    val log = complLogWT.filter(x => x._1 >= start && (end < 0 || x._1 <= end)).map(_._2)
+//
+//    val jVs = log.flatMap(extractJVs)
+//    val init = (-1.0, List[JointValues]())
+//    val fixedTime = jVs.foldLeft(init)((a,b)=>
+//      if (a._1 < 0){
+//        val t = b.t
+//        (t, List(b.copy(t = 0.0)))
+//      } else {
+//        val newV = b.t - a._1
+//        (a._1, b.copy(t = b.t - a._1) :: a._2)
+//      }
+//    )._2.reverse
+//
+//    val header = List("[HEADER]", " GEAR_NOMINAL_VEL = 1.000000", "  CRC = 2339249579", "[RECORDS]")
+//    val lastLine = "[END]"
+//
+//    val body = jVs.map(_.toString)
+//    header.map(println)
+//    body.map(println)
+//    println(lastLine)
+//
+//    val body2 = fixedTime.map(_.toString)
+//    header.map(println)
+//    body2.map(println)
+//    println(lastLine)
+//
+//    val res = (header ++ body2) :+ lastLine
 
-    val jVs = log.flatMap(extractJVs)
-    val init = (-1.0, List[JointValues]())
-    val fixedTime = jVs.foldLeft(init)((a,b)=>
-      if (a._1 < 0){
-        val t = b.t
-        (t, List(b.copy(t = 0.0)))
-      } else {
-        val newV = b.t - a._1
-        (a._1, b.copy(t = b.t - a._1) :: a._2)
-      }
-    )._2.reverse
-
-    val header = List("[HEADER]", " GEAR_NOMINAL_VEL = 1.000000", "  CRC = 2339249579", "[RECORDS]")
-    val lastLine = "[END]"
-
-    val body = jVs.map(_.toString)
-    header.map(println)
-    body.map(println)
-    println(lastLine)
-
-    val body2 = fixedTime.map(_.toString)
-    header.map(println)
-    body2.map(println)
-    println(lastLine)
-
-    val res = (header ++ body2) :+ lastLine
-
-    writeLinesToFile(folder, emiFile, res)
+    //writeLinesToFile(folder, emiFile, res)
   }
 
 }
