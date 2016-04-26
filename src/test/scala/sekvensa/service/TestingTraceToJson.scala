@@ -51,6 +51,55 @@ case class JointValues(t: Double, j1: Double, j2: Double, j3: Double, j4: Double
   }
 }
 
+
+case class Mark(robot: Int, entersAtSample: Int, exitsAtSample: Int)
+case class SarmadJsonRobot(time: List[Double],
+                      trajectory: List[List[Double]],
+                      makespan: Double,
+                      samplingRate: Double = 0.012,
+                      timeToleranceMax: Double = 0.012,
+                      timeToleranceMin: Double = 0.012,
+                      epsilonT: Double = 0.012,
+                      costScaleFactor: Double = 0.012,
+                      velocityLimit: List[Double] = (1 to 6).map(x => 200.0).toList,
+                      accelerationLimit: List[Double]  = (1 to 6).map(x => 2000.0).toList,
+                      jerkLimit: List[Double] = (1 to 6).map(x => 15000.0).toList,
+                      weights: List[List[Double]] = List(List(20, 20, 20, 10, 7, 5)),
+                     )
+case class SarmadJson(robots: List[SarmadJsonRobot],
+                      sharedZones: List[List[Mark]] = List(),
+                      preservedZones: List[Mark] = List()
+                     )
+
+trait SarmadJsonTest {
+  val times = List[Double]()
+  val trajectory = List[List[Double]]()
+  val robot = SPAttributes(
+    "makespan" -> 8.0,
+    "samplingRate" -> 0.012,
+    "timeToleranceMax" -> 0.1,
+    "timeToleranceMin" -> 0.001,
+    "epsilonT" -> 0.001,
+    "costScaleFactor" -> 100,
+    "velocityLimit" -> (1 to 6).map(x => 200),
+    "accelerationLimit" -> (1 to 6).map(x => 2000),
+    "jerkLimit" -> (1 to 6).map(x => 15000),
+    "weights" -> List(List(20, 20, 20, 10, 7, 5)),
+    "time" -> times,
+    "trajectory" -> trajectory
+  )
+
+  val r1Z = Mark(0, 100, 300)
+  val r2Z = Mark(1, 301, 400)
+
+  val request = SPAttributes(
+    "robots" -> List(robot, robot),
+    "sharedZones" -> List(List()),
+    "preservedZones" -> List()
+  )
+}
+
+
 trait TraceNProgEater {
   def zipTheLog(lines: List[String]) = {
     println(s"no of lines" + lines.size)
