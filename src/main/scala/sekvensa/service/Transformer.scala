@@ -16,7 +16,7 @@ import scala.util.Try
   * Created by kristofer on 2016-02-08.
   * An example map transformation that listens on elvis patient and returns a diff
   */
-class Transformer extends Actor with DummyOptimizer {
+class Transformer extends Actor with DummyOptimizer with EnergyOptimizer {
   implicit val formats = org.json4s.DefaultFormats ++ org.json4s.ext.JodaTimeSerializers.all // for json serialization
 
   // reading from config file

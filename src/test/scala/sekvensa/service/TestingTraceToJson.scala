@@ -8,17 +8,20 @@ import scala.util.Try
 
 trait FilesNStuff {
   // Script settings
-  val folder = "/Users/kristofer/Dropbox/Sarmad - Kristofer/Experiments KUKA Nordic/traces and emi/160421/multiplePaus/"
+  val folder = "/Users/kristofer/Dropbox/Sarmad - Kristofer/AREUS DAI/toRemove/Emily_030RB_100/"
   val logFile = "TraceORIG_KRCIpo.asc"
+  val emiLogFile = "opt_traj.txt"
+  val sarmadJsonFile = "orig_traj3.json"
   val progFile = "TraceORIG_PROG.TXT"
   val jsonFile = "TraceORIG.json"
-  val start = 5.328
-  val end = 6.924
-  val emiFile = "emiMiddle.txt"
+  val start = 64.068
+  val end = 66.996
+  val emiFile = "emiToHome.txt"
   val pretty = true
 
-  val fileLines = readFromFile(folder + logFile)
-  val markingLines = readFromFile(folder + progFile)
+  lazy val fileLines = readFromFile(folder + logFile)
+  lazy val markingLines = readFromFile(folder + progFile)
+  lazy val emiLines = readFromFile(folder + emiLogFile)
 
   def writeToFile(path: String, filename: String, txt: String): Unit = {
     import java.nio.file.{Paths, Files}; import java.nio.charset.StandardCharsets
@@ -37,6 +40,7 @@ case class JointValues(t: Double, j1: Double, j2: Double, j3: Double, j4: Double
     val dt = t - jv.t
     JointValues(t, (j1-jv.j1)/(dt), (j2-jv.j2)/(dt), (j3-jv.j3)/(dt), (j4-jv.j4)/(dt), (j5-jv.j5)/(dt), (j6-jv.j6)/(dt))
   }
+  def getJoints = List(j1, j2, j3, j4, j5, j6)
   override def toString = {
     round(t,3).toString + "  " +
     j1.toString  + "  " +
@@ -64,7 +68,7 @@ case class SarmadJsonRobot(time: List[Double],
                       velocityLimit: List[Double] = (1 to 6).map(x => 200.0).toList,
                       accelerationLimit: List[Double]  = (1 to 6).map(x => 2000.0).toList,
                       jerkLimit: List[Double] = (1 to 6).map(x => 15000.0).toList,
-                      weights: List[List[Double]] = List(List(20, 20, 20, 10, 7, 5)),
+                      weights: List[List[Double]] = List(List(20, 20, 20, 10, 7, 5))
                      )
 case class SarmadJson(robots: List[SarmadJsonRobot],
                       sharedZones: List[List[Mark]] = List(),
@@ -72,31 +76,41 @@ case class SarmadJson(robots: List[SarmadJsonRobot],
                      )
 
 trait SarmadJsonTest {
-  val times = List[Double]()
-  val trajectory = List[List[Double]]()
-  val robot = SPAttributes(
-    "makespan" -> 8.0,
-    "samplingRate" -> 0.012,
-    "timeToleranceMax" -> 0.1,
-    "timeToleranceMin" -> 0.001,
-    "epsilonT" -> 0.001,
-    "costScaleFactor" -> 100,
-    "velocityLimit" -> (1 to 6).map(x => 200),
-    "accelerationLimit" -> (1 to 6).map(x => 2000),
-    "jerkLimit" -> (1 to 6).map(x => 15000),
-    "weights" -> List(List(20, 20, 20, 10, 7, 5)),
-    "time" -> times,
-    "trajectory" -> trajectory
-  )
+  implicit val formats = org.json4s.DefaultFormats ++ org.json4s.ext.JodaTimeSerializers.all // for json serialization
+  def makeSarmadJson(xs: List[JointValues]) = {
+    val times = xs.map(_.t)
+    val totalTime = times.reverse.headOption.getOrElse(0.0)
+    val traj = xs.map(_.getJoints)
+    val robot = SarmadJsonRobot(times, traj, totalTime)
+    SarmadJson(List(robot))
+  }
 
-  val r1Z = Mark(0, 100, 300)
-  val r2Z = Mark(1, 301, 400)
 
-  val request = SPAttributes(
-    "robots" -> List(robot, robot),
-    "sharedZones" -> List(List()),
-    "preservedZones" -> List()
-  )
+//  val times = List[Double]()
+//  val trajectory = List[List[Double]]()
+//  val robot = SPAttributes(
+//    "makespan" -> 8.0,
+//    "samplingRate" -> 0.012,
+//    "timeToleranceMax" -> 0.1,
+//    "timeToleranceMin" -> 0.001,
+//    "epsilonT" -> 0.001,
+//    "costScaleFactor" -> 100,
+//    "velocityLimit" -> (1 to 6).map(x => 200),
+//    "accelerationLimit" -> (1 to 6).map(x => 2000),
+//    "jerkLimit" -> (1 to 6).map(x => 15000),
+//    "weights" -> List(List(20, 20, 20, 10, 7, 5)),
+//    "time" -> times,
+//    "trajectory" -> trajectory
+//  )
+//
+//  val r1Z = Mark(0, 100, 300)
+//  val r2Z = Mark(1, 301, 400)
+//
+//  val request = SPAttributes(
+//    "robots" -> List(robot, robot),
+//    "sharedZones" -> List(List()),
+//    "preservedZones" -> List()
+//  )
 }
 
 
@@ -106,6 +120,18 @@ trait TraceNProgEater {
     val head = lines.head.split("\t").toList
     val logLines = lines.tail.map(_.split("\t"))
     logLines.map(x => (head zip x).toMap)
+  }
+
+  def extractJVsEMILog(lines: List[String]) = {
+    for {
+      l <- lines
+      js = {val kalle = l.split("\\s+").map(_.trim).filter(_.nonEmpty); //println(kalle.toList);
+        kalle}
+      if js.size == 7
+      j <- Try{js.map(_.toDouble)}.toOption
+    } yield {
+      JointValues(j(0), j(1), j(2), j(3), j(4), j(5), j(6))
+    }
   }
 
   def extractJVs(map: Map[String, String]) = {
@@ -136,10 +162,7 @@ trait TraceNProgEater {
       derJVs(y :: xs, dy :: res)
   }
 
-  def round(n: Double, p: Int): Double = {
-    val s = math pow(10,p)
-    (math floor n*s)/s
-  }
+
 
 
   //case class MotionInfo(time: Double, module: String, function: String, motionType: String, signal: String, line: Int, point: String, coord: String, blend: String, vel: String, acc: String, base: String, tool: String, ipo: String)
@@ -195,48 +218,63 @@ trait TraceNProgEater {
 /**
   * Created by kristofer on 2016-04-05.
   */
-class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with FilesNStuff with TraceNProgEater {
-  implicit val formats = org.json4s.DefaultFormats ++ org.json4s.ext.JodaTimeSerializers.all // for json serialization
+class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with FilesNStuff with TraceNProgEater with SarmadJsonTest {
 
-  "Parse the trace file" - {
-    val lines = fileLines // file.lines.toList
-    println(s"no of lines" + lines.size)
-    val zip = zipTheLog(lines)
-    println("a log line")
-    zip.head.foreach(println)
-    println(s"testing the time: "+ getTheTime(zip.head))
+//  "Parse the trace file" in {
+//    val lines = fileLines // file.lines.toList
+//    println(s"no of lines" + lines.size)
+//    val zip = zipTheLog(lines)
+//    println("a log line")
+//    zip.head.foreach(println)
+//    println(s"testing the time: "+ getTheTime(zip.head))
+//  }
+//
+//  "parse the emi file" in {
+//    val lines = emiLines
+//    println(s"no of lines" + lines.size)
+//    val zip = extractJVsEMILog(lines)
+//    println("a log line emi:")
+//    println(zip.head)
+//  }
+//
+//  "parse the prog file" in {
+//    val lines = markingLines
+//    val info = makeTheProgStruct(lines)
+//    println()
+//    println("a info struct")
+//    info.head.map(println)
+//    println(s"testing the time: "+ getTheTime(info.head))
+//
+//  }
+//
+//  "merge trace and prog" in {
+//    val logWT = filter(zipTheLog(fileLines))
+//    val marksWT = filter(makeTheProgStruct(markingLines))
+//    val sorted = (logWT ++ marksWT).sortWith(_._1 < _._1)
+//    val json = if (pretty) writePretty(sorted) else write(sorted)
+//    //writeToFile(folder, jsonFile, json)
+//  }
+
+//  "find standstill" in {
+//    val logWT = zipTheLog(fileLines)
+//    val jVs = logWT.flatMap(extractJVs)
+//    val still = allStandStills(jVs)
+//    println(s"All stills: $still")
+//  }
+
+  "emi to sarmad" in {
+    val emi = extractJVsEMILog(emiLines)
+    val sarmad = makeSarmadJson(emi)
+    println("sarmad")
+    writeToFile(folder, sarmadJsonFile, (writePretty(sarmad)))
   }
 
-  "parse the prog file" - {
-    val lines = markingLines
-    val info = makeTheProgStruct(lines)
-    println()
-    println("a info struct")
-    info.head.map(println)
-    println(s"testing the time: "+ getTheTime(info.head))
-
-  }
-
-  "merge trace and prog" - {
-    val logWT = filter(zipTheLog(fileLines))
-    val marksWT = filter(makeTheProgStruct(markingLines))
-    val sorted = (logWT ++ marksWT).sortWith(_._1 < _._1)
-    val json = if (pretty) writePretty(sorted) else write(sorted)
-    //writeToFile(folder, jsonFile, json)
-  }
-
-  "find standstill" - {
-    val logWT = zipTheLog(fileLines)
-    val jVs = logWT.flatMap(extractJVs)
-    val still = allStandStills(jVs)
-    println(s"All stills: $still")
-  }
-
-  "traceToEMI" - {
+  "traceToEMI" in {
+//
 //    val completeLog = zipTheLog(fileLines)
 //    val complLogWT = filter(completeLog)
 //    val log = complLogWT.filter(x => x._1 >= start && (end < 0 || x._1 <= end)).map(_._2)
-//
+////
 //    val jVs = log.flatMap(extractJVs)
 //    val init = (-1.0, List[JointValues]())
 //    val fixedTime = jVs.foldLeft(init)((a,b)=>
@@ -263,8 +301,43 @@ class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with
 //    println(lastLine)
 //
 //    val res = (header ++ body2) :+ lastLine
+//
+//    writeLinesToFile(folder, emiFile, res)
+  }
 
-    //writeLinesToFile(folder, emiFile, res)
+
+  "emiToEMI" in {
+
+    val emi = extractJVsEMILog(emiLines)
+    val jVs = emi.filter(x => x.t >= start && (end < 0 || x.t <= end))
+
+    val init = (-1.0, List[JointValues]())
+    val fixedTime = jVs.foldLeft(init)((a,b)=>
+      if (a._1 < 0){
+        val t = b.t
+        (t, List(b.copy(t = 0.0)))
+      } else {
+        val newV = b.t - a._1
+        (a._1, b.copy(t = b.t - a._1) :: a._2)
+      }
+    )._2.reverse
+
+    val header = List("[HEADER]", " GEAR_NOMINAL_VEL = 1.000000", "  CRC = 2339249579", "[RECORDS]")
+    val lastLine = "[END]"
+
+    val body = jVs.map(_.toString)
+    header.map(println)
+    body.map(println)
+    println(lastLine)
+
+    val body2 = fixedTime.map(_.toString)
+    header.map(println)
+    body2.map(println)
+    println(lastLine)
+
+    val res = (header ++ body2) :+ lastLine
+
+    writeLinesToFile(folder, emiFile, res)
   }
 
 }
