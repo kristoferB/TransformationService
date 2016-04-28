@@ -50,13 +50,16 @@ class TransformerTest extends FreeSpec with Matchers with DummyOptimizer {
 
       val sarmad = new EnergyOptimizer {}
       val res = sarmad.convertTrajectory(traj)
-      println(res)
+
+
+      //println(res)
       //assert(filtered == res.trajectory)
     }
     "should fix the trace" in {
 
       implicit val formats = org.json4s.DefaultFormats ++ org.json4s.ext.JodaTimeSerializers.all
-      val f = scala.io.Source.fromFile("/Users/kristofer/SW/PatientDiffService/sunriseTest.json", "UTF-8").mkString("")
+      val path = "/Users/kristofer/SW/PatientDiffService/"
+      val f = scala.io.Source.fromFile(path + "sunriseTest.json", "UTF-8").mkString("")
       val trajO  = Try{read[Trajectory](f)}.foreach{ traj =>
         println(traj.info)
         val sarmad = new EnergyOptimizer {}
@@ -64,7 +67,16 @@ class TransformerTest extends FreeSpec with Matchers with DummyOptimizer {
         println(s"no of samples: ${res.trajectory.size} and before ${traj.trajectory.size}")
         val newJson = sarmad.convertTrajectory(res)
         println("json:")
-        println(newJson)
+        // println(newJson)
+
+        val fNS = new FilesNStuff {}
+        val tpe = new TraceNProgEater {}
+        fNS.writeToFile(path, "optimized.json", newJson)
+
+        val jVs = res.trajectory.map(p => JointValues(p.time, p.joints(0), p.joints(1), p.joints(2), p.joints(3), p.joints(4), p.joints(5)))
+        val emi = tpe.makeEMIFile(jVs)
+        fNS.writeLinesToFile(path, "emiOptimized", emi)
+
       }
 
     }

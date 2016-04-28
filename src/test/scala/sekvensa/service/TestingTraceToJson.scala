@@ -8,15 +8,15 @@ import scala.util.Try
 
 trait FilesNStuff {
   // Script settings
-  val folder = "/Users/kristofer/Dropbox/Sarmad - Kristofer/AREUS DAI/toRemove/Emily_030RB_100/"
+  val folder = "/Users/kristofer/Dropbox/Sarmad - Kristofer/AREUS DAI/trace/Emily_030RB_100/"
   val logFile = "TraceORIG_KRCIpo.asc"
   val emiLogFile = "opt_traj.txt"
   val sarmadJsonFile = "orig_traj3.json"
   val progFile = "TraceORIG_PROG.TXT"
   val jsonFile = "TraceORIG.json"
-  val start = 64.068
-  val end = 66.996
-  val emiFile = "emiToHome.txt"
+  val start = 35.628
+  val end = 37.704
+  val emiFile = "emiFromLeave.txt"
   val pretty = true
 
   lazy val fileLines = readFromFile(folder + logFile)
@@ -206,6 +206,24 @@ trait TraceNProgEater {
     }
   }
 
+  def makeEMIFile(jVs: List[JointValues]) = {
+    val init = (-1.0, List[JointValues]())
+    val fixedTime = jVs.foldLeft(init)((a,b)=>
+      if (a._1 < 0){
+        val t = b.t
+        (t, List(b.copy(t = 0.0)))
+      } else {
+        val newV = b.t - a._1
+        (a._1, b.copy(t = b.t - a._1) :: a._2)
+      }
+    )._2.reverse
+
+    val header = List("[HEADER]", " GEAR_NOMINAL_VEL = 1.000000", "  CRC = 2339249579", "[RECORDS]")
+    val lastLine = "[END]"
+    val body = fixedTime.map(_.toString)
+    (header ++ body) :+ lastLine
+  }
+
   def allStandStills(xs: List[JointValues]) = {
     val jsaj = jointSpeedAccAndJerk(xs)
     val s = mergeJoints(jsaj._2).filter(_._2 <= 0.001).map(_._1)
@@ -255,12 +273,30 @@ class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with
 //    //writeToFile(folder, jsonFile, json)
 //  }
 
-//  "find standstill" in {
-//    val logWT = zipTheLog(fileLines)
-//    val jVs = logWT.flatMap(extractJVs)
-//    val still = allStandStills(jVs)
-//    println(s"All stills: $still")
-//  }
+  "find standstill in trace" in {
+    val logWT = zipTheLog(fileLines)
+    val jVs = logWT.flatMap(extractJVs)
+    val still = allStandStills(jVs)
+    println(s"All stills: $still")
+  }
+
+  "find standstill in emi" in {
+    val still = allStandStills(extractJVsEMILog(emiLines))
+
+    val fold = still.foldLeft((List[Double](),0.0))((tuple,jv) =>
+      tuple._1 match {
+        case Nil => (List(jv), jv)
+        case x :: xs if (jv - tuple._2) - 0.0002 <= 0.012 =>
+          (tuple._1, jv)
+        case x :: xs if x != tuple._2 => (jv :: tuple._2 :: tuple._1, jv)
+        case x :: xs => (jv :: tuple._1, jv)
+      }
+    )
+
+    println(s"All stills:")
+    fold._1.map(println)
+    println(still)
+  }
 
   "emi to sarmad" in {
     val emi = extractJVsEMILog(emiLines)
@@ -270,72 +306,20 @@ class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with
   }
 
   "traceToEMI" in {
-//
-//    val completeLog = zipTheLog(fileLines)
-//    val complLogWT = filter(completeLog)
-//    val log = complLogWT.filter(x => x._1 >= start && (end < 0 || x._1 <= end)).map(_._2)
-////
-//    val jVs = log.flatMap(extractJVs)
-//    val init = (-1.0, List[JointValues]())
-//    val fixedTime = jVs.foldLeft(init)((a,b)=>
-//      if (a._1 < 0){
-//        val t = b.t
-//        (t, List(b.copy(t = 0.0)))
-//      } else {
-//        val newV = b.t - a._1
-//        (a._1, b.copy(t = b.t - a._1) :: a._2)
-//      }
-//    )._2.reverse
-//
-//    val header = List("[HEADER]", " GEAR_NOMINAL_VEL = 1.000000", "  CRC = 2339249579", "[RECORDS]")
-//    val lastLine = "[END]"
-//
-//    val body = jVs.map(_.toString)
-//    header.map(println)
-//    body.map(println)
-//    println(lastLine)
-//
-//    val body2 = fixedTime.map(_.toString)
-//    header.map(println)
-//    body2.map(println)
-//    println(lastLine)
-//
-//    val res = (header ++ body2) :+ lastLine
-//
-//    writeLinesToFile(folder, emiFile, res)
+    val completeLog = zipTheLog(fileLines)
+    val complLogWT = filter(completeLog)
+    val log = complLogWT.filter(x => x._1 >= start && (end < 0 || x._1 <= end)).map(_._2)
+    val jVs = log.flatMap(extractJVs)
+    val res = makeEMIFile(jVs)
+
+    writeLinesToFile(folder, emiFile, res)
   }
 
 
   "emiToEMI" in {
-
     val emi = extractJVsEMILog(emiLines)
     val jVs = emi.filter(x => x.t >= start && (end < 0 || x.t <= end))
-
-    val init = (-1.0, List[JointValues]())
-    val fixedTime = jVs.foldLeft(init)((a,b)=>
-      if (a._1 < 0){
-        val t = b.t
-        (t, List(b.copy(t = 0.0)))
-      } else {
-        val newV = b.t - a._1
-        (a._1, b.copy(t = b.t - a._1) :: a._2)
-      }
-    )._2.reverse
-
-    val header = List("[HEADER]", " GEAR_NOMINAL_VEL = 1.000000", "  CRC = 2339249579", "[RECORDS]")
-    val lastLine = "[END]"
-
-    val body = jVs.map(_.toString)
-    header.map(println)
-    body.map(println)
-    println(lastLine)
-
-    val body2 = fixedTime.map(_.toString)
-    header.map(println)
-    body2.map(println)
-    println(lastLine)
-
-    val res = (header ++ body2) :+ lastLine
+    val res = makeEMIFile(jVs)
 
     writeLinesToFile(folder, emiFile, res)
   }
