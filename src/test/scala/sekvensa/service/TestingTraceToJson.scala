@@ -6,17 +6,227 @@ import org.json4s.native.Serialization._
 import scala.annotation.tailrec
 import scala.util.Try
 
+
+/**
+  * Created by kristofer on 2016-04-05.
+  */
+class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with FilesNStuff with TraceNProgEater with SarmadJsonTest {
+
+  //  "Parse the trace file" in {
+  //    val lines = fileLines // file.lines.toList
+  //    println(s"no of lines" + lines.size)
+  //    val zip = zipTheLog(lines)
+  //    println("a log line")
+  //    zip.head.foreach(println)
+  //    println(s"testing the time: "+ getTheTime(zip.head))
+  //  }
+  //
+  //  "parse the emi file" in {
+  //    val lines = emiLines
+  //    println(s"no of lines" + lines.size)
+  //    val zip = extractJVsEMILog(lines)
+  //    println("a log line emi:")
+  //    println(zip.head)
+  //  }
+  //
+  //  "parse the prog file" in {
+  //    val lines = markingLines
+  //    val info = makeTheProgStruct(lines)
+  //    println()
+  //    println("a info struct")
+  //    info.head.map(println)
+  //    println(s"testing the time: "+ getTheTime(info.head))
+  //
+  //  }
+  //
+  //  "merge trace and prog" in {
+  //    val logWT = filter(zipTheLog(fileLines))
+  //    val marksWT = filter(makeTheProgStruct(markingLines))
+  //    val sorted = (logWT ++ marksWT).sortWith(_._1 < _._1)
+  //    val json = if (pretty) writePretty(sorted) else write(sorted)
+  //    //writeToFile(folder, jsonFile, json)
+  //  }
+
+  "find standstill in trace" in {
+    val logWT = zipTheLog(fileLines)
+    val jVs = logWT.flatMap(extractJVs)
+    val still = allStandStills(jVs)
+    val fold = still.foldLeft((List[Double](),0.0))((tuple,jv) =>
+      tuple._1 match {
+        case Nil => (List(jv), jv)
+        case x :: xs if (jv - tuple._2) - 0.0002 <= 0.012 =>
+          (tuple._1, jv)
+        case x :: xs if x != tuple._2 => (jv :: tuple._2 :: tuple._1, jv)
+        case x :: xs => (jv :: tuple._1, jv)
+      }
+    )
+
+    println(s"All stills:")
+    fold._1.reverse.map(println)
+    println(still)
+  }
+
+  "find standstill in emi" in {
+    val still = allStandStills(extractJVsEMILog(emiLines))
+
+    val fold = still.foldLeft((List[Double](),0.0))((tuple,jv) =>
+      tuple._1 match {
+        case Nil => (List(jv), jv)
+        case x :: xs if (jv - tuple._2) - 0.0002 <= 0.012 =>
+          (tuple._1, jv)
+        case x :: xs if x != tuple._2 => (jv :: tuple._2 :: tuple._1, jv)
+        case x :: xs => (jv :: tuple._1, jv)
+      }
+    )
+
+    println(s"All stills:")
+    fold._1.reverse.map(println)
+    println(still)
+  }
+
+  "emi to sarmad" in {
+    val emi = extractJVsEMILog(emiLines)
+    val sarmad = makeSarmadJson(emi)
+    println("sarmad")
+    writeToFile(folder, sarmadJsonFile, (writePretty(sarmad)))
+  }
+
+  "traceToEMI" in {
+    val completeLog = zipTheLog(fileLines)
+    val complLogWT = filter(completeLog)
+    val log = complLogWT.filter(x => x._1 >= start && (end < 0 || x._1 <= end)).map(_._2)
+    val jVs = log.flatMap(extractJVs)
+    val res = makeEMIFile(jVs)
+
+    writeLinesToFile(folder, emiFile, res)
+  }
+
+  "emiToEMI" in {
+    val emi = extractJVsEMILog(emiLines)
+    val jVs = emi.filter(x => x.t >= start && (end < 0 || x.t <= end))
+    val res = makeEMIFile(jVs)
+
+    writeLinesToFile(folder, emiFile, res)
+  }
+
+  case class RobOp(name: String, beforeStart: Double, beforeEnd: Double, start: Double, end: Double)
+  "Fix times and create emi operations" in {
+    val folder = "C:\\Users\\krist\\Dropbox\\Sarmad - Kristofer\\AREUS DAI\\Optimization\\160428\\R30Case1/"
+    val opt = readFromFile(folder + "sol.txt")
+    val optEMI = readFromFile(folder + "opt_traj.txt")
+    val emi = extractJVsEMILog(optEMI)
+
+
+    val pairs: List[(Double, Double)] = opt.flatMap { l =>
+      val tuple = l.split("\\s+").flatMap(d => Try(d.toDouble).toOption)
+      if (tuple.size == 2) Some((tuple(0), tuple(1))) else None
+    }
+
+
+
+    val ops = List(
+      RobOp("ToPU20",	    1,	214  ,	0.0,  0.0     ),
+      RobOp("FromPU20",	  335,	499  ,	0.0,	0.0     ),
+      RobOp("ToPrag",	    527,	676  ,	0.0,	0.0     )  ,
+      RobOp("FromPrag",	  824,	992  ,	0.0,	0.0     )  ,
+      RobOp("ToPlace_1",	    1027	,1154  ,	0.0,	0.0     )    ,
+      RobOp("FromPlace_1",	    1261	,1346  ,	0.0,	0.0     )  ,
+      RobOp("ToPU30_1",	  2015	,2095  ,	0.0,	0.0     )  ,
+      RobOp("FromPU30_1",	  2202	,2287  ,	0.0,	0.0     )  ,
+      RobOp("ToLeave_2",	  2313	,2597  ,	0.0,	0.0     )  ,
+      RobOp("FromLeave_2",	3114	,3289  ,	0.0,	0.0     )
+    )
+    val map = pairs.toMap
+    val upd = ops.map{o =>
+      val tS = map(o.beforeStart)
+      val tE = map(o.beforeEnd)
+      o.copy(start = tS, end = tE)
+    }
+
+
+
+
+    var diff = 0.0
+    upd.foreach {o =>
+      val oldTime = o.beforeEnd*0.012-o.beforeStart*0.012
+      val newTime = o.end-o.start
+      diff = diff + (newTime-oldTime)
+      println(s"${o.name}: oldtime: ${oldTime} newTime: ${newTime}")
+      val jVs = emi.filter(x => x.t >= o.start-0.006 && (x.t <= o.end+0.006))
+      val res = makeEMIFile(jVs)
+      writeLinesToFile(folder, o.name+".txt", res)
+    }
+    println(diff)
+
+
+    // Check do not touch:
+    val donots = List(
+      RobOp("PU2",	      175	,334 ,	0.0,  0.0     ),
+      RobOp("PU2-PU1",	  500	,526 ,	0.0,	0.0     ),
+      RobOp("PU1",	      669	,823  ,	0.0,	0.0     )  ,
+      RobOp("PU1-PU5",	  993	,1026  ,	0.0,	0.0     )  ,
+      RobOp("PU5",	      1155	,1260  ,	0.0,	0.0     )    ,
+      RobOp("glue",	      1347	,2014  ,	0.0,	0.0     )  ,
+      RobOp("short",	    2096	,2201  ,	0.0,	0.0     )  ,
+      RobOp("pl1",	      2288	,2312  ,	0.0,	0.0     )  ,
+      RobOp("pl2",	      2598	,3113  ,	0.0,	0.0     )
+    )
+    val don = donots.map{o =>
+      val tS = map(o.beforeStart)
+      val tE = map(o.beforeEnd)
+      o.copy(start = tS, end = tE)
+    }
+    diff = 0.0
+    don.foreach {o =>
+      val oldTime = o.beforeEnd*0.012-o.beforeStart*0.012
+      val newTime = o.end-o.start
+      diff = diff + (newTime-oldTime)
+      println(s"${o.name}: oldtime: ${oldTime} newTime: ${newTime}")
+    }
+    println(diff)
+
+
+  }
+
+  "optEmiToEMI" in {
+    val folder = "C:\\Users\\krist\\Dropbox\\Sarmad - Kristofer\\AREUS DAI\\Optimization\\160428\\R10/"
+    val opt = readFromFile(folder + "opt_traj.txt")
+    val emi = extractJVsEMILog(opt)
+    val ops = List(RobOp("ToPU2",	0,	184,	0,	2.59187),
+      RobOp("FromPU2",	795,	917,	9.30294,	10.8399)     ,
+      RobOp("ToPU1",	920,	1024,	10.8529,	12.5252)       ,
+      RobOp("FromPU1",	1512,	1587,	17.8832,	19.36)       ,
+      RobOp("ToPU5",	1591,	1741,	19.384,	21.0926)         ,
+      RobOp("ToGlue",	2583,	2779,	30.3447,	32.8895)       ,
+      RobOp("FromGlue",	3823,	3982,	44.4418,	46.3051)     ,
+      RobOp("ToPlaceS",	4058,	4319,	47.1211,	51.0897)     ,
+      RobOp("ToPlaceB",	4438,	4554,	52.3887,	53.8596)     ,
+      RobOp("FromPlace1",	4746,	4903,	55.9577,	58.1903)   ,
+      RobOp("FromPlace2",	4906,	5002,	58.2133,	60.024)
+    )
+
+    ops.foreach {o =>
+      val jVs = emi.filter(x => x.t >= o.start-0.006 && (x.t <= o.end+0.006))
+      val res = makeEMIFile(jVs)
+      writeLinesToFile(folder, o.name, res)
+    }
+
+  }
+
+}
+
+
 trait FilesNStuff {
   // Script settings
-  val folder = "/Users/kristofer/Dropbox/Sarmad - Kristofer/AREUS DAI/trace/Emily_030RB_100/"
-  val logFile = "TraceORIG_KRCIpo.asc"
+  val folder = "C:\\Users\\krist\\Dropbox\\Sarmad - Kristofer\\AREUS DAI\\trace\\160428\\Trace_und_Emily_030RB_100/"
+  val logFile = "R30FULL2_KRCIpo.asc"
   val emiLogFile = "opt_traj.txt"
   val sarmadJsonFile = "orig_traj3.json"
-  val progFile = "TraceORIG_PROG.TXT"
+  val progFile = "R30FULL2_PROG.TXT"
   val jsonFile = "TraceORIG.json"
-  val start = 35.628
-  val end = 37.704
-  val emiFile = "emiFromLeave.txt"
+  val start = 46.944
+  val end = 47.904
+  val emiFile = "OrgToPU30_2"
   val pretty = true
 
   lazy val fileLines = readFromFile(folder + logFile)
@@ -233,98 +443,6 @@ trait TraceNProgEater {
   }
 }
 
-/**
-  * Created by kristofer on 2016-04-05.
-  */
-class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with FilesNStuff with TraceNProgEater with SarmadJsonTest {
-
-//  "Parse the trace file" in {
-//    val lines = fileLines // file.lines.toList
-//    println(s"no of lines" + lines.size)
-//    val zip = zipTheLog(lines)
-//    println("a log line")
-//    zip.head.foreach(println)
-//    println(s"testing the time: "+ getTheTime(zip.head))
-//  }
-//
-//  "parse the emi file" in {
-//    val lines = emiLines
-//    println(s"no of lines" + lines.size)
-//    val zip = extractJVsEMILog(lines)
-//    println("a log line emi:")
-//    println(zip.head)
-//  }
-//
-//  "parse the prog file" in {
-//    val lines = markingLines
-//    val info = makeTheProgStruct(lines)
-//    println()
-//    println("a info struct")
-//    info.head.map(println)
-//    println(s"testing the time: "+ getTheTime(info.head))
-//
-//  }
-//
-//  "merge trace and prog" in {
-//    val logWT = filter(zipTheLog(fileLines))
-//    val marksWT = filter(makeTheProgStruct(markingLines))
-//    val sorted = (logWT ++ marksWT).sortWith(_._1 < _._1)
-//    val json = if (pretty) writePretty(sorted) else write(sorted)
-//    //writeToFile(folder, jsonFile, json)
-//  }
-
-  "find standstill in trace" in {
-    val logWT = zipTheLog(fileLines)
-    val jVs = logWT.flatMap(extractJVs)
-    val still = allStandStills(jVs)
-    println(s"All stills: $still")
-  }
-
-  "find standstill in emi" in {
-    val still = allStandStills(extractJVsEMILog(emiLines))
-
-    val fold = still.foldLeft((List[Double](),0.0))((tuple,jv) =>
-      tuple._1 match {
-        case Nil => (List(jv), jv)
-        case x :: xs if (jv - tuple._2) - 0.0002 <= 0.012 =>
-          (tuple._1, jv)
-        case x :: xs if x != tuple._2 => (jv :: tuple._2 :: tuple._1, jv)
-        case x :: xs => (jv :: tuple._1, jv)
-      }
-    )
-
-    println(s"All stills:")
-    fold._1.map(println)
-    println(still)
-  }
-
-  "emi to sarmad" in {
-    val emi = extractJVsEMILog(emiLines)
-    val sarmad = makeSarmadJson(emi)
-    println("sarmad")
-    writeToFile(folder, sarmadJsonFile, (writePretty(sarmad)))
-  }
-
-  "traceToEMI" in {
-    val completeLog = zipTheLog(fileLines)
-    val complLogWT = filter(completeLog)
-    val log = complLogWT.filter(x => x._1 >= start && (end < 0 || x._1 <= end)).map(_._2)
-    val jVs = log.flatMap(extractJVs)
-    val res = makeEMIFile(jVs)
-
-    writeLinesToFile(folder, emiFile, res)
-  }
-
-
-  "emiToEMI" in {
-    val emi = extractJVsEMILog(emiLines)
-    val jVs = emi.filter(x => x.t >= start && (end < 0 || x.t <= end))
-    val res = makeEMIFile(jVs)
-
-    writeLinesToFile(folder, emiFile, res)
-  }
-
-}
 
 
 
