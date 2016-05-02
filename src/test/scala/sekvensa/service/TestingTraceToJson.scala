@@ -88,7 +88,7 @@ class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with
     val emi = extractJVsEMILog(emiLines)
     val sarmad = makeSarmadJson(emi)
     println("sarmad")
-    writeToFile(folder, sarmadJsonFile, (writePretty(sarmad)))
+    writeToFile(folder, sarmadJsonFile, writePretty(sarmad))
   }
 
   "traceToEMI" in {

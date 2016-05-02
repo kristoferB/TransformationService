@@ -2,6 +2,8 @@ package sekvensa.service
 
 import org.json4s.native.Serialization._
 
+import scala.util.Try
+
 /**
   * Created by kristofer on 2016-04-26.
   */
@@ -28,13 +30,19 @@ trait EnergyOptimizer {
     }
   }
 
+
   // Must be correct sampling before called
   def convertTrajectory(traj: Trajectory) = {
-    implicit val formats = org.json4s.DefaultFormats ++ org.json4s.ext.JodaTimeSerializers.all
+   implicit val formats = org.json4s.DefaultFormats ++ org.json4s.ext.JodaTimeSerializers.all
     val times = traj.trajectory.map(_.time)
     val joints = traj.trajectory.map(_.joints)
     val makespan = times.reverse.headOption.getOrElse(0.0)
     writePretty(SarmadJson(robots = List(SarmadJsonRobot(times, joints, makespan))))
+  }
+
+  def readSarmadJson(json: String) = {
+    implicit val formats = org.json4s.DefaultFormats ++ org.json4s.ext.JodaTimeSerializers.all
+    Try(read[SarmadJson](json)).toOption
   }
 
   def round(n: Double, p: Int): Double = {

@@ -55,8 +55,7 @@ class TransformerTest extends FreeSpec with Matchers with DummyOptimizer {
       //println(res)
       //assert(filtered == res.trajectory)
     }
-    "should fix the trace" in {
-
+    "should convert sunrise json to sarmad json and emi" in {
       implicit val formats = org.json4s.DefaultFormats ++ org.json4s.ext.JodaTimeSerializers.all
       val path = "/Users/kristofer/SW/PatientDiffService/"
       val f = scala.io.Source.fromFile(path + "sunriseTest.json", "UTF-8").mkString("")
@@ -76,10 +75,9 @@ class TransformerTest extends FreeSpec with Matchers with DummyOptimizer {
         val jVs = res.trajectory.map(p => JointValues(p.time, p.joints(0), p.joints(1), p.joints(2), p.joints(3), p.joints(4), p.joints(5)))
         val emi = tpe.makeEMIFile(jVs)
         fNS.writeLinesToFile(path, "emiOptimized", emi)
-
       }
-
     }
+
   }
   "The Dummy optimizer" - {
     "when making new trajectories" - {
