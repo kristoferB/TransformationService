@@ -40,7 +40,8 @@ object ConvertSarmadJson extends App with FileHandling with TrajectoryConverter 
   }
 
   inSarmad.foreach { x =>
-    // Check format
+    // result from sarmad optimizer
+    
   }
 
 

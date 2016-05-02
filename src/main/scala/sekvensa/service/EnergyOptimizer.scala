@@ -68,3 +68,6 @@ case class SarmadJson(robots: List[SarmadJsonRobot],
                       sharedZones: List[List[Mark]] = List(),
                       preservedZones: List[Mark] = List()
                      )
+
+case class SarmadResultTrajectory(optimizedTime: List[Double], interpolatedTrajectory: List[List[Double]])
+case class SarmadResult(result: List[SarmadResultTrajectory])

@@ -16,8 +16,7 @@ import scala.util.Try
   * Created by kristofer on 2016-02-08.
   * An example map transformation that listens on elvis patient and returns a diff
   */
-class Transformer extends Actor with DummyOptimizer with EnergyOptimizer {
-  implicit val formats = org.json4s.DefaultFormats ++ org.json4s.ext.JodaTimeSerializers.all // for json serialization
+class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with TrajectoryConverter {
 
   // reading from config file
   val config = ConfigFactory.load()
@@ -39,6 +38,7 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer {
     case ConnectionEstablished(request, c) => {
       println("connected:"+request)
       c ! ConsumeFromTopic(readFrom)
+      c ! ConsumeFromTopic("MODALA.RESPONSE")
       theBus = Some(c)
     }
     case ConnectionFailed(request, reason) => {
@@ -46,17 +46,52 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer {
     }
     case mess @ AMQMessage(body, prop, headers) => {
       val topic = prop.destination.map(_.name).getOrElse("")
-      val traj  = Try{read[Trajectory](body.toString)}.toOption
 
-      val optType = traj.map(_.optimization.optType).getOrElse("jointer")
+      topic match {
+        case s: String if s == readFrom => {
+          val traj  = Try{read[Trajectory](body.toString)}
+          traj.failed.map { t =>
+            println(t.getLocalizedMessage)
+            sendToLisa(write(SPAttributes("error" -> t.getLocalizedMessage)))
+          }
+          traj.map{t =>
+            t.optimization.optType match {
+              case "slowDown" => sendDummy(t, createNewTraj(t))
+              case "jointer" => sendDummy(t, createNewTraj(t))
+              case "optimization" =>
+                val downSample = fixSamples(t)
+                val sarmad = makeSarmadJson(makeJointValues(downSample.trajectory))
+                theBus.foreach{bus => bus ! SendMessage(Topic("MODALA.QUERIES"), AMQMessage(sarmad))}
+              case s =>
+                println(s"what is $s?")
+            }
+          }
+        }
 
-      val res = traj.map{createNewTraj}.getOrElse(List())
+        case "MODALA.RESPONSE" => {
+          val sarmadResult = Try{read[SarmadResult](body.toString)}
+          sarmadResult.failed.map { t =>
+            println(s"couldn't convert the response from MODALAR: $body")
+            println(t.getLocalizedMessage)
+          }
+          sarmadResult.map{res =>
+            val zip = res.result.map(x => x.optimizedTime zip x.interpolatedTrajectory)
+            val jsVs = zip.map(x => x.map(j => Pose(j._1, j._2)))
+            val trajs = jsVs.map(jv => Trajectory(Info("result", DateTime.now), OptimizationParameters("optimization"), jv))
+            trajs.foreach(x => sendToLisa(write(x)))
+          }
+        }
+
+      }
 
 
-      val optTrajName = traj.map(_.info.name).getOrElse("noName") +"_opt"
-      val optPara = traj.map(_.optimization).getOrElse(OptimizationParameters("Can not convert"))
-      val resTray = Trajectory(Info(optTrajName, DateTime.now), optPara, res)
-      sendToLisa(write(resTray))
+
+
+
+
+    }
+    case t: Trajectory => {
+      sendToLisa(write(t))
     }
   }
 
@@ -64,6 +99,13 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer {
     theBus.map(_ ! CloseConnection)
   }
 
+
+  def sendDummy(traj: Trajectory, res: List[Pose]) = {
+    val optTrajName = traj.info.name +"_opt"
+    val optPara = traj.optimization
+    val resTray = Trajectory(Info(optTrajName, DateTime.now), optPara, res)
+    sendToLisa(write(resTray))
+  }
 
   def sendToLisa(json: String) = {
     theBus.foreach{bus => bus ! SendMessage(Topic(writeTo), AMQMessage(json))}
