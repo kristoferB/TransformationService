@@ -1,5 +1,6 @@
 package sekvensa.service
 
+import org.joda.time.DateTime
 import org.json4s.native.Serialization._
 
 import scala.util.Try
@@ -43,6 +44,16 @@ trait EnergyOptimizer {
   def readSarmadJson(json: String) = {
     implicit val formats = org.json4s.DefaultFormats ++ org.json4s.ext.JodaTimeSerializers.all
     Try(read[SarmadJson](json)).toOption
+  }
+
+  def readSarmadResult(json: String) = {
+    Try{read[SarmadResult](json)}.toOption
+  }
+
+  def sarmadResultsToTrajectories(xs: SarmadResult) = {
+    val zip = xs.result.map(x => x.optimizedTime zip x.interpolatedTrajectory)
+    val poses = zip.map(x => x.map(j => Pose(j._1, j._2)))
+    poses.map(jv => Trajectory(Info("result", DateTime.now), OptimizationParameters("optimization"), jv))
   }
 
   def round(n: Double, p: Int): Double = {

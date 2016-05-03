@@ -1,5 +1,6 @@
 package sekvensa.service
 
+import com.github.nscala_time.time.Imports._
 import org.joda.time.DateTime
 import org.json4s.native.Serialization._
 
@@ -18,7 +19,7 @@ object ConvertSarmadJson extends App with FileHandling with TrajectoryConverter 
   val emiIn = "sunriseTest.json_EMI.txt"
   val friIn = "sunriseTest.json"
 
-  val inSarmad = Try(readFromFile(folder +  sarmadJsonIn)).toOption.flatMap(x => readSarmadJson(x.mkString(" ")))
+  val inSarmad = Try(readFromFile(folder +  sarmadJsonIn)).toOption.flatMap(x => readSarmadResult(x.mkString(" ")))
   val inEMI = Try(readFromFile(folder + emiIn)).toOption.map(x => extractJVsEMILog(x))
   val inFRI = Try(readFromFile(folder + friIn)).toOption.flatMap(x => readFRIJson(x.mkString(" ")))
 
@@ -40,8 +41,14 @@ object ConvertSarmadJson extends App with FileHandling with TrajectoryConverter 
   }
 
   inSarmad.foreach { x =>
-    // result from sarmad optimizer
-    
+    val trajs = sarmadResultsToTrajectories(x)
+
+    trajs.zipWithIndex.foreach{case (t, i) =>
+      writeToFile(folder, sarmadJsonIn + s"_FRI_$i.json", writePretty(t))
+
+      val jsV = makeJointValues(t.trajectory)
+      writeLinesToFile(folder, friIn + s"_EMI_$i.txt", makeEMIFile(jsV))
+    }
   }
 
 
