@@ -53,6 +53,17 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
           traj.failed.map { t =>
             println(t.getLocalizedMessage)
             sendToLisa(write(SPAttributes("error" -> t.getLocalizedMessage)))
+
+            if (body.toString == "test"){
+              val fileH = new FileHandling {}
+              val testJson = Try(fileH.readFromFile("/Users/kristofer/SW/PatientDiffService/sunriseTest.json_EMI.txt_FRI.json")).toOption.flatMap(x => readFRIJson(x.mkString(" ")))
+              testJson.foreach { t =>
+                println("testing json"+ t.trajectory.size)
+                val downSample = fixSamples(t)
+                val sarmad = makeSarmadJson(makeJointValues(downSample.trajectory))
+                theBus.foreach { bus => bus ! SendMessage(Topic("MODALA.QUERIES"), AMQMessage(write(sarmad))) }
+              }
+            }
           }
           traj.map{t =>
             t.optimization.optType match {
@@ -61,7 +72,7 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
               case "optimization" =>
                 val downSample = fixSamples(t)
                 val sarmad = makeSarmadJson(makeJointValues(downSample.trajectory))
-                theBus.foreach{bus => bus ! SendMessage(Topic("MODALA.QUERIES"), AMQMessage(sarmad))}
+                theBus.foreach{bus => bus ! SendMessage(Topic("MODALA.QUERIES"), AMQMessage(write(sarmad)))}
               case s =>
                 println(s"what is $s?")
             }
@@ -78,6 +89,9 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
             val zip = res.result.map(x => x.optimizedTime zip x.interpolatedTrajectory)
             val jsVs = zip.map(x => x.map(j => Pose(j._1, j._2)))
             val trajs = jsVs.map(jv => Trajectory(Info("result", DateTime.now), OptimizationParameters("optimization"), jv))
+
+            println("The optimization is done! " +trajs.head.trajectory.size)
+
             trajs.foreach(x => sendToLisa(write(x)))
           }
         }
@@ -171,13 +185,16 @@ class TransformerListener extends Actor {
     case ConnectionEstablished(request, c) => {
       println("connected:"+request)
       c ! ConsumeFromTopic(writeTo)
+      //c ! ConsumeFromTopic(readFrom)
+      //c ! ConsumeFromTopic("MODALA.QUERIES")
+      //c ! ConsumeFromTopic("MODALA.RESPONSE")
       theBus = Some(c)
     }
     case ConnectionFailed(request, reason) => {
       println("failed:"+reason)
     }
     case mess @ AMQMessage(body, prop, headers) => {
-      println(s"The optimized json: $body")
+      println(s"The message on the bus: $mess")
     }
   }
 

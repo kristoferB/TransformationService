@@ -13,7 +13,7 @@ object Main extends App {
   transformActor ! "connect"
 
   val transformListener = system.actorOf(sekvensa.service.TransformerListener.props)
-  //transformListener ! "connect"
+  transformListener ! "connect"
 
   scala.io.StdIn.readLine("Press ENTER to exit application.\n") match {
     case x => system.terminate()

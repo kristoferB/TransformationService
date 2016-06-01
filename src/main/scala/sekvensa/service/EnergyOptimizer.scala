@@ -47,6 +47,7 @@ trait EnergyOptimizer {
   }
 
   def readSarmadResult(json: String) = {
+    implicit val formats = org.json4s.DefaultFormats ++ org.json4s.ext.JodaTimeSerializers.all
     Try{read[SarmadResult](json)}.toOption
   }
 
