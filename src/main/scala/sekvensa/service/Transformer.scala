@@ -8,7 +8,8 @@ import com.typesafe.config.ConfigFactory
 import org.json4s._
 import org.json4s.native.Serialization
 import org.json4s.native.Serialization.{read, write}
-import com.github.nscala_time.time.Imports._
+import scala.concurrent.duration._
+
 
 import scala.util.Try
 
@@ -25,15 +26,27 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
   val pass = config.getString("sp.activemq.pass")
   val readFrom = config.getString("sp.simpleservice.readFromTopic")
   val writeTo = config.getString("sp.simpleservice.writeToTopic")
+  val sample = Try{config.getDouble("sp.simpleservice.timeBetweenSamples")}.getOrElse(0.012)
+
 
   // The state
   var theBus: Option[ActorRef] = None
 
 
+  def sendSarmad(t: Trajectory) = {
+    println("converting trajectory to sarmad"+ t.trajectory.size)
+    val downSample = fixSamples(t, sample)
+    val sarmad = makeSarmadJson(makeJointValues(downSample.trajectory))
+
+    // update sarmad json
+
+    theBus.foreach { bus => bus ! SendMessage(Topic("MODALA.QUERIES"), AMQMessage(write(sarmad))) }
+  }
+
 
   def receive = {
     case "connect" => {
-      ReActiveMQExtension(context.system).manager ! GetAuthenticatedConnection(s"nio://$address:61616", user, pass)
+      ReActiveMQExtension(context.system).manager ! GetAuthenticatedConnection(s"nio://$address:61616", user, pass, None, 2.seconds)
     }
     case ConnectionEstablished(request, c) => {
       println("connected:"+request)
@@ -58,10 +71,7 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
               val fileH = new FileHandling {}
               val testJson = Try(fileH.readFromFile("/Users/kristofer/SW/PatientDiffService/sunriseTest.json_EMI.txt_FRI.json")).toOption.flatMap(x => readFRIJson(x.mkString(" ")))
               testJson.foreach { t =>
-                println("testing json"+ t.trajectory.size)
-                val downSample = fixSamples(t)
-                val sarmad = makeSarmadJson(makeJointValues(downSample.trajectory))
-                theBus.foreach { bus => bus ! SendMessage(Topic("MODALA.QUERIES"), AMQMessage(write(sarmad))) }
+               sendSarmad(t)
               }
             }
           }
@@ -70,9 +80,7 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
               case "slowDown" => sendDummy(t, createNewTraj(t))
               case "jointer" => sendDummy(t, createNewTraj(t))
               case "optimization" =>
-                val downSample = fixSamples(t)
-                val sarmad = makeSarmadJson(makeJointValues(downSample.trajectory))
-                theBus.foreach{bus => bus ! SendMessage(Topic("MODALA.QUERIES"), AMQMessage(write(sarmad)))}
+                sendSarmad(t)
               case s =>
                 println(s"what is $s?")
             }
@@ -88,6 +96,7 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
           sarmadResult.map{res =>
             val zip = res.result.map(x => x.optimizedTime zip x.interpolatedTrajectory)
             val jsVs = zip.map(x => x.map(j => Pose(j._1, j._2)))
+            import com.github.nscala_time.time.Imports._
             val trajs = jsVs.map(jv => Trajectory(Info("result", DateTime.now), OptimizationParameters("optimization"), jv))
 
             println("The optimization is done! " +trajs.head.trajectory.size)
@@ -117,6 +126,7 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
   def sendDummy(traj: Trajectory, res: List[Pose]) = {
     val optTrajName = traj.info.name +"_opt"
     val optPara = traj.optimization
+    import com.github.nscala_time.time.Imports._
     val resTray = Trajectory(Info(optTrajName, DateTime.now), optPara, res)
     sendToLisa(write(resTray))
   }
@@ -180,7 +190,7 @@ class TransformerListener extends Actor {
 
   def receive = {
     case "connect" => {
-      ReActiveMQExtension(context.system).manager ! GetAuthenticatedConnection(s"nio://$address:61616", user, pass)
+      ReActiveMQExtension(context.system).manager ! GetAuthenticatedConnection(s"nio://$address:61616", user, pass, None, 2.seconds)
     }
     case ConnectionEstablished(request, c) => {
       println("connected:"+request)

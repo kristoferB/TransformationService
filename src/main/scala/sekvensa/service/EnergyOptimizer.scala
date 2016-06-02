@@ -9,7 +9,10 @@ import scala.util.Try
   * Created by kristofer on 2016-04-26.
   */
 trait EnergyOptimizer {
-  def fixSamples(traj: Trajectory) = {
+
+  val timeBetween = 0.012
+
+  def fixSamples(traj: Trajectory, sample: Double = timeBetween) = {
     if (traj.trajectory.isEmpty) traj
     else {
       val drop = traj.trajectory.dropWhile(_.joints == traj.trajectory.head.joints)
@@ -19,13 +22,13 @@ trait EnergyOptimizer {
       val filter = temp.foldLeft(List[Pose]()) { (list, p) =>
         list match {
           case Nil => List(p)
-          case x :: xs if p.time - x.time < 0.012 => list
+          case x :: xs if p.time - x.time < sample => list
           case x :: xs => p :: list
         }
       }
 
       val t = filter.head.time
-      val ending = (filter.head.copy(time = round(t+0.024,3)) :: filter.head.copy(time = round(t+0.012, 3)) :: filter.head :: filter.dropWhile(_.joints == filter.head.joints)).reverse
+      val ending = (filter.head.copy(time = round(t+sample*2,3)) :: filter.head.copy(time = round(t+sample, 3)) :: filter.head :: filter.dropWhile(_.joints == filter.head.joints)).reverse
 
       traj.copy(trajectory = ending)
     }
