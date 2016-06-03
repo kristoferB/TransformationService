@@ -65,9 +65,9 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
     }
     case "test" =>
       val fileH = new FileHandling {}
-      val testJson = Try(fileH.readFromFile("/Users/kristofer/SW/PatientDiffService/sunriseTest.json_EMI.txt_FRI.json")).toOption.flatMap(x => readFRIJson(x.mkString(" ")))
+      val testJson = Try(fileH.readFromFile("sunriseTest.json_EMI.txt_FRI.json")).toOption.flatMap(x => readFRIJson(x.mkString(" ")))
 
-      val testJson2 = fileH.readFromFile("/Users/kristofer/SW/PatientDiffService/info.json")
+      val testJson2 = fileH.readFromFile("info.json")
       theBus.foreach { bus => bus ! SendMessage(Topic("MODALA.QUERIES"), AMQMessage(testJson2.mkString(" "))) }
 
       testJson.foreach { t => sendSarmad(t)}
