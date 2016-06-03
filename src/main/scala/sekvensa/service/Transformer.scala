@@ -26,19 +26,27 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
   val pass = config.getString("sp.activemq.pass")
   val readFrom = config.getString("sp.simpleservice.readFromTopic")
   val writeTo = config.getString("sp.simpleservice.writeToTopic")
-  val sample = Try{config.getDouble("sp.simpleservice.timeBetweenSamples")}.getOrElse(0.012)
+  val sampleFactor = Try{config.getInt("sp.simpleservice.sampleFactor")}.getOrElse(6)
 
 
   // The state
   var theBus: Option[ActorRef] = None
 
+//  val fileH = new FileHandling {}
+//  val testJson = Try(fileH.readFromFile("/Users/kristofer/SW/PatientDiffService/sunriseTest.json_EMI.txt_FRI.json")).toOption.flatMap(x => readFRIJson(x.mkString(" ")))
+//
+//  testJson.foreach { t =>
+//    val downSample = fixSamples(t, sampleFactor)
+//    val sarmad = makeSarmadJson(makeJointValues(downSample.trajectory))
+//    fileH.writeToFile("/Users/kristofer/SW/PatientDiffService/","downSample" , write(sarmad))
+//  }
+
+
 
   def sendSarmad(t: Trajectory) = {
     println("converting trajectory to sarmad"+ t.trajectory.size)
-    val downSample = fixSamples(t, sample)
+    val downSample = t // fixSamples(t, sample)
     val sarmad = makeSarmadJson(makeJointValues(downSample.trajectory))
-
-    // update sarmad json
 
     theBus.foreach { bus => bus ! SendMessage(Topic("MODALA.QUERIES"), AMQMessage(write(sarmad))) }
   }
@@ -53,7 +61,17 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
       c ! ConsumeFromTopic(readFrom)
       c ! ConsumeFromTopic("MODALA.RESPONSE")
       theBus = Some(c)
+      self ! "test"
     }
+    case "test" =>
+      val fileH = new FileHandling {}
+      val testJson = Try(fileH.readFromFile("/Users/kristofer/SW/PatientDiffService/sunriseTest.json_EMI.txt_FRI.json")).toOption.flatMap(x => readFRIJson(x.mkString(" ")))
+
+      val testJson2 = fileH.readFromFile("/Users/kristofer/SW/PatientDiffService/info.json")
+      theBus.foreach { bus => bus ! SendMessage(Topic("MODALA.QUERIES"), AMQMessage(testJson2.mkString(" "))) }
+
+      testJson.foreach { t => sendSarmad(t)}
+
     case ConnectionFailed(request, reason) => {
       println("failed:"+reason)
     }
