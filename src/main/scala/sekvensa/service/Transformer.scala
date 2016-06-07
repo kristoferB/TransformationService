@@ -33,7 +33,7 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
   var theBus: Option[ActorRef] = None
 
 //  val fileH = new FileHandling {}
-//  val testJson = Try(fileH.readFromFile("/Users/kristofer/SW/PatientDiffService/sunriseTest.json_EMI.txt_FRI.json")).toOption.flatMap(x => readFRIJson(x.mkString(" ")))
+//  val testJson = Try(fileH.readFromFile("sunriseTest.json_EMI.txt_FRI.json")).toOption.flatMap(x => readFRIJson(x.mkString(" ")))
 //
 //  testJson.foreach { t =>
 //    val downSample = fixSamples(t, sampleFactor)
@@ -45,7 +45,7 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
 
   def sendSarmad(t: Trajectory) = {
     println("converting trajectory to sarmad"+ t.trajectory.size)
-    val downSample = t // fixSamples(t, sample)
+    val downSample = fixSamples(t, sampleFactor)
     val sarmad = makeSarmadJson(makeJointValues(downSample.trajectory))
 
     theBus.foreach { bus => bus ! SendMessage(Topic("MODALA.QUERIES"), AMQMessage(write(sarmad))) }
@@ -67,8 +67,8 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
       val fileH = new FileHandling {}
       val testJson = Try(fileH.readFromFile("sunriseTest.json_EMI.txt_FRI.json")).toOption.flatMap(x => readFRIJson(x.mkString(" ")))
 
-      val testJson2 = fileH.readFromFile("info.json")
-      theBus.foreach { bus => bus ! SendMessage(Topic("MODALA.QUERIES"), AMQMessage(testJson2.mkString(" "))) }
+      //val testJson2 = fileH.readFromFile("info.json")
+      //theBus.foreach { bus => bus ! SendMessage(Topic("MODALA.QUERIES"), AMQMessage(testJson2.mkString(" "))) }
 
       testJson.foreach { t => sendSarmad(t)}
 
