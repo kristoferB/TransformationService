@@ -61,7 +61,7 @@ class Transformer extends Actor with DummyOptimizer with EnergyOptimizer with Tr
       c ! ConsumeFromTopic(readFrom)
       c ! ConsumeFromTopic("MODALA.RESPONSE")
       theBus = Some(c)
-      self ! "test"
+      //self ! "test"
     }
     case "test" =>
       val fileH = new FileHandling {}
