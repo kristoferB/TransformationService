@@ -111,7 +111,8 @@ class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with
 
   case class RobOp(name: String, beforeStart: Double, beforeEnd: Double, start: Double, end: Double)
   "Fix times and create emi operations" in {
-    val folder = "C:\\Users\\krist\\Dropbox\\Sarmad - Kristofer\\AREUS DAI\\Optimization\\160428\\R30Case1/"
+    val folder = "/Users/kristofer/Dropbox/Sarmad - Kristofer/Automatica/160607/Newer - R1/010R100_100/Optimization/"
+    //val folder = "/Users/kristofer/Dropbox/Sarmad - Kristofer/Automatica/160607/New/010R200_100/Optimization/"
     val opt = readFromFile(folder + "sol.txt")
     val optEMI = readFromFile(folder + "opt_traj.txt")
     val emi = extractJVsEMILog(optEMI)
@@ -125,21 +126,25 @@ class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with
 
 
     val ops = List(
-      RobOp("ToPU20",	    1,	214  ,	0.0,  0.0     ),
-      RobOp("FromPU20",	  335,	499  ,	0.0,	0.0     ),
-      RobOp("ToPrag",	    527,	676  ,	0.0,	0.0     )  ,
-      RobOp("FromPrag",	  824,	992  ,	0.0,	0.0     )  ,
-      RobOp("ToPlace_1",	    1027	,1154  ,	0.0,	0.0     )    ,
-      RobOp("FromPlace_1",	    1261	,1346  ,	0.0,	0.0     )  ,
-      RobOp("ToPU30_1",	  2015	,2095  ,	0.0,	0.0     )  ,
-      RobOp("FromPU30_1",	  2202	,2287  ,	0.0,	0.0     )  ,
-      RobOp("ToLeave_2",	  2313	,2597  ,	0.0,	0.0     )  ,
-      RobOp("FromLeave_2",	3114	,3289  ,	0.0,	0.0     )
+      RobOp("ToPlace"	, 0,	211        , 0, 0),
+      RobOp("FromPlace"	, 339,	518    , 0, 0),
+      RobOp("ToPick"	, 2634,	2857   , 0, 0),
+      RobOp("FromPick"	, 2970,	3138 , 0, 0),
+      RobOp("Moveit"	, 3188,	3573   , 0, 0)
     )
+
+//    val ops = List(
+//      RobOp("ToSW1"		,0	  ,223  , 0, 0),
+//      RobOp("ToSW2"	,405	  ,579  , 0, 0),
+//      RobOp("ToSW3"		,755	,889  , 0, 0),
+//      RobOp("ToSW4"	,1073	  ,1132 , 0, 0),
+//      RobOp("ToSW5"		,1316	,1448 , 0, 0),
+//      RobOp("Back"	  ,1630	,1769 , 0, 0)
+//    )
     val map = pairs.toMap
     val upd = ops.map{o =>
-      val tS = map(o.beforeStart)
-      val tE = map(o.beforeEnd)
+      val tS = map(o.beforeStart+1)
+      val tE = map(o.beforeEnd+1)
       o.copy(start = tS, end = tE)
     }
 
@@ -161,19 +166,15 @@ class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with
 
     // Check do not touch:
     val donots = List(
-      RobOp("PU2",	      175	,334 ,	0.0,  0.0     ),
-      RobOp("PU2-PU1",	  500	,526 ,	0.0,	0.0     ),
-      RobOp("PU1",	      669	,823  ,	0.0,	0.0     )  ,
-      RobOp("PU1-PU5",	  993	,1026  ,	0.0,	0.0     )  ,
-      RobOp("PU5",	      1155	,1260  ,	0.0,	0.0     )    ,
-      RobOp("glue",	      1347	,2014  ,	0.0,	0.0     )  ,
-      RobOp("short",	    2096	,2201  ,	0.0,	0.0     )  ,
-      RobOp("pl1",	      2288	,2312  ,	0.0,	0.0     )  ,
-      RobOp("pl2",	      2598	,3113  ,	0.0,	0.0     )
+      RobOp("place"		,204	,338     , 0.0, 0.0),
+      RobOp("wait"	  ,519	,2633    , 0.0, 0.0),
+      RobOp("pick"		,2850,	2969 , 0.0, 0.0),
+      RobOp("release"	,3139,	3187 , 0.0, 0.0)
     )
+
     val don = donots.map{o =>
-      val tS = map(o.beforeStart)
-      val tE = map(o.beforeEnd)
+      val tS = map(o.beforeStart+1)
+      val tE = map(o.beforeEnd+1)
       o.copy(start = tS, end = tE)
     }
     diff = 0.0
@@ -218,15 +219,15 @@ class TestingTraceToJson extends FreeSpec with Matchers with DummyOptimizer with
 
 trait FilesNStuff {
   // Script settings
-  val folder = "C:\\Users\\krist\\Dropbox\\Sarmad - Kristofer\\AREUS DAI\\trace\\160428\\Trace_und_Emily_030RB_100/"
-  val logFile = "R30FULL2_KRCIpo.asc"
-  val emiLogFile = "opt_traj.txt"
+  val folder = "/Users/kristofer/Dropbox/Sarmad - Kristofer/Automatica/160607/Newer - R1/010R100_100/"
+  val logFile = "010R100_KRCIpo.asc"
+  val emiLogFile = "org_traj.txt"
   val sarmadJsonFile = "orig_traj3.json"
-  val progFile = "R30FULL2_PROG.TXT"
+  val progFile = "010R100_PROG.txt"
   val jsonFile = "TraceORIG.json"
-  val start = 46.944
-  val end = 47.904
-  val emiFile = "OrgToPU30_2"
+  val start = 1.308
+  val end = 44.184
+  val emiFile = "OrgR100Newer.txt"
   val pretty = true
 
   lazy val fileLines = readFromFile(folder + logFile)

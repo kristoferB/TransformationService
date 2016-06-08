@@ -9,7 +9,7 @@ import scala.util.Try
   * Created by kristofer on 2016-04-26.
   */
 trait EnergyOptimizer {
-  def fixSamples(traj: Trajectory, sampleFactor: Int = 6) = {
+  def fixSamples(traj: Trajectory, sampleFactor: Int = 4) = {
     if (traj.trajectory.isEmpty) traj
     else {
       val t = traj.trajectory
@@ -121,11 +121,11 @@ case class Mark(robot: Int, entersAtSample: Int, exitsAtSample: Int)
 case class SarmadJsonRobot(time: List[Double],
                            trajectory: List[List[Double]],
                            makespan: Double,
-                           samplingRate: Double = 0.012,
-                           targetSamplingRate: Double = 0.002,
+                           samplingRate: Double = 0.020,
+                           targetSamplingRate: Double = 0.005,
                            timeToleranceMax: Double = 0.1,
                            timeToleranceMin: Double = 0.001,
-                           epsilonT: Double = 0.001,
+                           epsilonT: Double = 0.00001,
                            costScaleFactor: Double = 0.001,
                            velocityLimit: List[Double] = List(
                              300.0,
